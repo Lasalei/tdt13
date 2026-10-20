@@ -10,3 +10,22 @@ models/
 runs/
 results/
 frozen.lock
+
+# Never commit datasets, model weights or secrets
+*.parquet
+*.arrow
+*.joblib
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.gguf
+*.tar.gz
+aclImdb*/
+hf_cache/
+.cache/
+.env
+.env.*
+*.pem
+*.key
+.huggingface/
