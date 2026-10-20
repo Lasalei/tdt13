@@ -1,0 +1,7 @@
+# LLM inference (Qwen2.5-1.5B-Instruct). Install on a machine with a GPU.
+# Install torch matching your CUDA version first (see https://pytorch.org), then:
+#   pip install -r requirements.txt -r requirements-llm.txt
+# Not installed or tested in the development environment (no GPU, Hugging Face blocked).
+torch>=2.2
+transformers>=4.45
+accelerate>=0.30

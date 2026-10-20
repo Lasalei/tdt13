@@ -1,0 +1,76 @@
+# Single source of truth for the experiment.
+# The SHA-256 of this file's parsed content (the "config hash") is written into every
+# run manifest. Test-split runs are refused unless `imdbsent freeze` has recorded the
+# same hash (see README, "Test-set discipline").
+
+experiment_name: imdb-sentiment-tdt13
+seed: 13
+
+data:
+  hf_dataset: stanfordnlp/imdb
+  hf_config: plain_text
+  # Pin to a commit SHA before freezing (prepare prints the resolved SHA when online).
+  hf_revision: null
+  # Stratified validation subset held out from the 25,000 official training reviews.
+  validation_size: 2500
+  # Fixed stratified subset of validation used for LLM development runs (prompt sanity,
+  # invalid-output rate, runtime pilot). Full validation can also be run.
+  dev_llm_subset_size: 500
+
+preprocessing:
+  # IMDb reviews contain literal "<br />" tags; replaced with a space for all methods.
+  replace_br: true
+  # Applied identically to every method in the primary comparison (field `text_eval`).
+  # Word = whitespace-separated token. Reviews longer than max_words keep the first
+  # head_words words and the last (max_words - head_words) words, joined by " ... ".
+  truncation:
+    max_words: 400
+    head_words: 250
+
+vader:
+  # compound > threshold -> positive; compound < threshold -> negative;
+  # compound == threshold exactly -> "neutral" (no decision), counted as incorrect.
+  threshold: 0.0
+  # VADER's own neutral band (|compound| < 0.05). Not used for the label; reported
+  # separately so low-confidence decisions can be analysed.
+  neutral_band: 0.05
+
+tfidf:
+  lowercase: true
+  ngram_range: [1, 2]
+  min_df: 2
+  max_df: 0.95
+  sublinear_tf: true
+  max_features: null
+  # C is selected on the validation split (macro F1); ties -> smallest C.
+  C_grid: [0.25, 1.0, 4.0, 16.0]
+  max_iter: 2000
+
+llm:
+  model: Qwen/Qwen2.5-1.5B-Instruct
+  # Pin to a commit SHA before freezing.
+  revision: null
+  dtype: auto          # bf16 if supported, else fp16 on GPU, fp32 on CPU
+  batch_size: 16
+  max_new_tokens: 5
+  do_sample: false     # greedy decoding; identical for every LLM condition
+  system_prompt: >-
+    You are a sentiment classifier for English movie reviews.
+  instruction: >-
+    Classify the sentiment of the following movie review as positive or negative.
+    Answer with exactly one word: positive or negative.
+  # Each demonstration and the target review are formatted with this template.
+  review_template: "{instruction}\n\nReview: {review}"
+
+few_shot:
+  shots: [2, 4]
+  n_sets: 3
+  # Nested design: 4-shot set k = 2 further demonstrations PREPENDED to 2-shot set k,
+  # so the 2 -> 4 comparison changes only the number of examples within each set.
+  # Order is deterministic and counterbalanced; see src/imdbsent/demos.py.
+  nested: true
+  # Demonstrations are drawn from train_fit only, with length limits so they never
+  # need truncation and prompts stay short.
+  demo_min_words: 30
+  demo_max_words: 150
+  seed: 13

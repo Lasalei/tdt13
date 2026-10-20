@@ -1,0 +1,12 @@
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.venv/
+# Generated data and model artefacts (reproducible from code + config)
+data/raw/
+data/processed/
+models/
+# Run outputs are kept out of git by default; commit selected ones deliberately.
+runs/
+results/
+frozen.lock
