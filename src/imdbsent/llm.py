@@ -104,9 +104,9 @@ class HFBackend:
         if self.max_ctx and max(lens) + self.gen_cfg.max_new_tokens > self.max_ctx:
             raise RuntimeError("Prompt exceeds model context; reviews are never silently truncated.")
         with self.torch.inference_mode():
-            out = self.model.generate(**enc, generation_config=self.gen_cfg,
-                                      do_sample=self.gen_cfg.do_sample, repetition_penalty=1.0,
-                                      max_new_tokens=self.gen_cfg.max_new_tokens)
+            # All decoding settings (greedy, max_new_tokens, repetition_penalty=1.0) come from
+            # self.gen_cfg only; passing them again as kwargs is deprecated in transformers 5.x.
+            out = self.model.generate(**enc, generation_config=self.gen_cfg)
         new = out[:, enc["input_ids"].shape[1]:]
         texts = self.tok.batch_decode(new, skip_special_tokens=True)
         return list(zip(texts, [int(n) for n in lens]))
