@@ -29,3 +29,10 @@ hf_cache/
 *.pem
 *.key
 .huggingface/
+
+# iCloud: generated folders live in *.nosync (data, models, runs, results are symlinks)
+*.nosync/
+/data
+/models
+/runs
+/results
