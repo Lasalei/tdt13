@@ -10,7 +10,7 @@ from .config import Paths, load_config
 
 
 def _dump(obj) -> None:
-    print(json.dumps(obj, indent=2, default=str))
+    print(json.dumps(obj, indent=2, default=str), flush=True)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -76,7 +76,7 @@ def main(argv: list[str] | None = None) -> int:
 
         for c in a.conditions or list(BASELINE_CONDITIONS):
             m = run_baseline(cfg, paths, a.split, c, overwrite=a.overwrite)
-            print(f"{c}: {m['n_predictions']} predictions -> {paths.run_dir(a.split, c)}")
+            print(f"{c}: {m['n_predictions']} predictions -> {paths.run_dir(a.split, c)}", flush=True)
     elif a.cmd == "llm":
         from .demos import condition_names
         from .llm import DummyBackend, HFBackend, run_llm
@@ -85,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
         conds = condition_names(cfg) if a.condition == "all" else [a.condition]
         for c in conds:
             m = run_llm(cfg, paths, c, a.split_tag, a.limit, backend, a.batch_size, a.overwrite, a.max_batches)
-            print(f"{c}: {m['n_predictions']}/{m['n_target']} complete={m['complete']}")
+            print(f"{c}: {m['n_predictions']}/{m['n_target']} complete={m['complete']}", flush=True)
     elif a.cmd == "pilot":
         from .llm import DummyBackend, HFBackend, pilot_estimate
 
@@ -102,8 +102,8 @@ def main(argv: list[str] | None = None) -> int:
         from .evaluate import evaluate
 
         res = evaluate(cfg, paths, a.split_tag)
-        print(res["status"])
-        print(Path(paths.results / a.split_tag / "metrics_summary.csv").read_text())
+        print(res["status"], flush=True)
+        print(Path(paths.results / a.split_tag / "metrics_summary.csv").read_text(), flush=True)
     elif a.cmd == "freeze":
         from .guard import freeze
 

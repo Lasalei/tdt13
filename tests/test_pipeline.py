@@ -223,3 +223,13 @@ def test_pilot_batch_size_override(small):
     df = pd.read_json(run / "predictions.jsonl", lines=True)
     assert len(df) == 6 and df["batch_index"].nunique() == 3
     assert cfg["llm"]["batch_size"] == 16  # config value is not modified
+
+
+def test_llm_progress_lines(small, capsys):
+    cfg, paths, _, _ = small
+    run_llm(cfg, paths, "qwen_zeroshot", "pipeline-test", backend=DummyBackend(),
+            batch_size=16, overwrite=True)
+    lines = [l for l in capsys.readouterr().out.splitlines() if l.startswith("[qwen_zeroshot]")]
+    assert "start: 0/200 already done" in lines[0]
+    progress = [l for l in lines[1:] if "%)" in l]
+    assert 9 <= len(progress) <= 11 and "200/200 (100%)" in progress[-1]

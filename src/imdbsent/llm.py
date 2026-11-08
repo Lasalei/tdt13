@@ -178,6 +178,11 @@ def run_llm(cfg: dict[str, Any], paths: Paths, condition: str, split_tag: str = 
     t_start = time.perf_counter()
     secs = man.get("seconds_total", 0.0)
     n_batches = 0
+    n_total = int(len(df))
+    step = max(1, -(-n_total // 10))  # progress line about every 10% of the condition
+    next_report = (len(w.done) // step + 1) * step
+    print(f"[{condition}] start: {len(w.done)}/{n_total} already done, {len(todo)} to go "
+          f"(split_tag={split_tag}, batch_size={bs})", flush=True)
     for start in range(0, len(todo), bs):
         chunk = todo.iloc[start:start + bs]
         msgs = [build_messages(cfg, t, cond["demos"]) for t in chunk["text_eval"]]
@@ -201,6 +206,11 @@ def run_llm(cfg: dict[str, Any], paths: Paths, condition: str, split_tag: str = 
         n_batches += 1
         w.write_manifest(n_predictions=len(w.done), seconds_total=round(secs, 2),
                          complete=len(w.done) >= len(df))
+        if len(w.done) >= next_report or len(w.done) >= n_total:
+            print(f"[{condition}] {len(w.done)}/{n_total} ({100 * len(w.done) / n_total:.0f}%), "
+                  f"{time.perf_counter() - t_start:.0f}s this session, {secs:.0f}s generating in total",
+                  flush=True)
+            next_report = (len(w.done) // step + 1) * step
         if max_batches and n_batches >= max_batches:
             break
     w.write_manifest(n_predictions=len(w.done), complete=len(w.done) >= len(df),
