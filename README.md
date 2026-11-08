@@ -212,17 +212,34 @@ Hugging Face is blocked there, so no LLM inference has been run yet.
 [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Lasalei/tdt13/blob/main/notebooks/colab_gpu_runs.ipynb)
 
 [`notebooks/colab_gpu_runs.ipynb`](notebooks/colab_gpu_runs.ipynb) runs the LLM development
-steps on a Colab T4 GPU (Runtime → Change runtime type → T4 GPU). The repository and all
-outputs live on Google Drive (`MyDrive/tdt13`), so **Run all** after a disconnect resumes
-interrupted runs. The notebook:
+steps on Colab. **Recommended: Colab Pro with an L4 GPU** (Runtime → Change runtime type →
+L4 GPU). The model runs in `bfloat16`, which the L4 supports natively; on a free-tier T4,
+which has no native bf16, the pilot estimated about 41 hours for the test runs. The repository
+and all outputs live on Google Drive (`MyDrive/tdt13`), so **Run all** after a disconnect
+resumes interrupted runs. Progress is printed about every 10% of each condition. The notebook:
 
-1. checks for a CUDA GPU, mounts Drive, clones or pulls the repository;
+1. checks for a CUDA GPU, prints its name and warns (without stopping) if it is not an L4;
+   mounts Drive and clones or pulls the repository;
 2. installs the requirements (keeping Colab's CUDA build of torch) and runs pytest;
 3. runs `prepare` and `select-demos` only if `data/processed/` is missing, then stops unless the
    split file hashes and the `demo_sets.json` hash match the expected values at the top of the
    notebook. If they differ, upload the local `data/processed/` to Drive;
-4. runs the validation baselines if missing, the pilot (`--n 48`, config batch size), all seven
-   LLM conditions on `validation-dev`, and `evaluate --split-tag validation-dev`.
+4. runs the validation baselines if missing;
+5. archives the earlier T4 dev runs (see below);
+6. runs the pilot (`--n 48`, config batch size), all seven LLM conditions on
+   `validation-dev`, and `evaluate --split-tag validation-dev`.
+
+**Archived T4 runs.** The first dev runs were made on a T4 with `llm.dtype: auto`. Pinning
+`bfloat16` changed the Qwen settings hash, so those runs cannot be resumed. If
+`runs/validation-dev` contains runs with a different Qwen settings hash and no archive exists
+yet, the notebook renames it to `runs/validation-dev-t4-autodtype` (and `results/validation-dev`
+to `results/validation-dev-t4-autodtype`). They are kept as a record and are not part of the
+comparison; the dev runs are redone on the L4. Runs that match the current settings are
+never moved.
+
+**Same GPU for all test conditions.** Batched bf16 inference can differ slightly between GPU
+types, so all LLM test conditions must run on the same GPU type (L4). Each run manifest records
+the GPU name, which can be checked before evaluating.
 
 It never runs `freeze` or touches the test split. Test runs come later, after `freeze`, in a
 separate notebook.
@@ -279,7 +296,7 @@ src/imdbsent/
   guard.py       test-split lock (freeze)
   predio.py      append-only, resumable prediction files
   cli.py         `python -m imdbsent <command>`
-notebooks/colab_gpu_runs.ipynb      Colab GPU runs (pilot + validation-dev), Drive-backed
+notebooks/colab_gpu_runs.ipynb      Colab L4 GPU runs (pilot + validation-dev), Drive-backed
 scripts/make_synthetic_fixture.py   synthetic data for pipeline tests only
 tests/test_pipeline.py              technical tests
 ```
