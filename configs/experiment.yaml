@@ -50,7 +50,9 @@ llm:
   model: Qwen/Qwen2.5-1.5B-Instruct
   # Pin to a commit SHA before freezing.
   revision: 989aa7980e4cf806f80c7fef2b1adb7bc71aa306
-  dtype: auto          # bf16 if supported, else fp16 on GPU, fp32 on CPU
+  # Pinned so results do not depend on the GPU type. "auto" (bf16 if supported, else fp16
+  # on GPU, fp32 on CPU) is still accepted by the code but is not used for the experiment.
+  dtype: bfloat16
   batch_size: 16
   max_new_tokens: 5
   do_sample: false     # greedy decoding; identical for every LLM condition

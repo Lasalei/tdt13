@@ -98,6 +98,10 @@ assistant: <generated>
 
 Zero-shot is the same prompt with no demonstration turns.
 
+* **Precision:** model weights and activations in `bfloat16` (`llm.dtype`), on every GPU.
+  The code also accepts `dtype: auto` (bf16 if the GPU supports it, else fp16; fp32 on CPU),
+  but the experiment pins `bfloat16` so the numerics do not depend on the GPU type. A GPU
+  without native bf16 (for example a T4) runs it, but much more slowly.
 * **Decoding:** greedy (`do_sample=False`), `max_new_tokens=5`, `repetition_penalty=1.0`.
   The model's shipped generation config (which sets sampling parameters and a repetition
   penalty) is replaced explicitly and recorded in the run manifest.
