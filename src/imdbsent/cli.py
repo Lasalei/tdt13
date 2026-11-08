@@ -45,6 +45,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--conditions", nargs="*",
                    default=["qwen_zeroshot", "qwen_2shot_set1", "qwen_4shot_set1"])
     p.add_argument("--backend", choices=["hf", "dummy"], default="hf")
+    p.add_argument("--batch-size", type=int, default=None,
+                   help="override llm.batch_size for the pilot only (recorded in the run manifest)")
 
     sub.add_parser("plan", help="print the planned number of predictions")
 
@@ -88,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
         from .llm import DummyBackend, HFBackend, pilot_estimate
 
         backend = DummyBackend() if a.backend == "dummy" else HFBackend(cfg)
-        res = pilot_estimate(cfg, paths, a.conditions, a.n, backend)
+        res = pilot_estimate(cfg, paths, a.conditions, a.n, backend, a.batch_size)
         paths.results.mkdir(parents=True, exist_ok=True)
         (paths.results / f"pilot_estimate_{backend.name}.json").write_text(json.dumps(res, indent=2), encoding="utf-8")
         _dump(res)

@@ -16,7 +16,7 @@ from imdbsent.data import normalize_text, prepare, stratified_pick, truncate_wor
 from imdbsent.demos import select_demo_sets, write_demo_sets
 from imdbsent.evaluate import mcnemar_exact, score_run
 from imdbsent.guard import TestSplitLocked, freeze, load_split
-from imdbsent.llm import DummyBackend, run_llm
+from imdbsent.llm import DummyBackend, pilot_estimate, run_llm
 from imdbsent.predio import PredictionWriter
 from imdbsent.prompts import build_messages, parse_output
 
@@ -211,3 +211,15 @@ def test_llm_run_resume_end_to_end(small):
     assert {"review_id", "true_label", "pred_label", "raw_output", "condition", "demo_ids"} <= set(df.columns)
     with pytest.raises(RuntimeError, match="Dummy backend"):
         run_llm(cfg, paths, "qwen_zeroshot", "validation-dev", backend=DummyBackend())
+
+
+def test_pilot_batch_size_override(small):
+    cfg, paths, _, _ = small
+    res = pilot_estimate(cfg, paths, ["qwen_zeroshot"], n=6, backend=DummyBackend(), batch_size=2)
+    assert res["batch_size"] == 2
+    run = paths.run_dir("pilot", "qwen_zeroshot")
+    man = json.loads((run / "run_manifest.json").read_text(encoding="utf-8"))
+    assert man["batch_size"] == 2
+    df = pd.read_json(run / "predictions.jsonl", lines=True)
+    assert len(df) == 6 and df["batch_index"].nunique() == 3
+    assert cfg["llm"]["batch_size"] == 16  # config value is not modified

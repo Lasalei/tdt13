@@ -210,17 +210,19 @@ def run_llm(cfg: dict[str, Any], paths: Paths, condition: str, split_tag: str = 
 
 
 def pilot_estimate(cfg: dict[str, Any], paths: Paths, conditions: Sequence[str], n: int = 48,
-                   backend: Backend | None = None) -> dict[str, Any]:
+                   backend: Backend | None = None, batch_size: int | None = None) -> dict[str, Any]:
     """Time a few conditions on n dev reviews and extrapolate to the planned runs.
 
     The first batch of each condition is excluded from the rate (warm-up / compilation).
     Few-shot conditions with the same k have similar prompt lengths, so one measured set per
-    k is used for all three sets of that k.
+    k is used for all three sets of that k. batch_size overrides llm.batch_size for the
+    pilot only; the value used is recorded in each pilot run manifest and in the result.
     """
     backend = backend or HFBackend(cfg)
     rates: dict[str, float] = {}
     for c in conditions:
-        m = run_llm(cfg, paths, c, split_tag="pilot", limit=n, backend=backend, overwrite=True)
+        m = run_llm(cfg, paths, c, split_tag="pilot", limit=n, backend=backend,
+                    batch_size=batch_size, overwrite=True)
         recs = pd.read_json(paths.run_dir("pilot", c) / "predictions.jsonl", lines=True)
         per_batch = recs.groupby("batch_index").agg(s=("batch_seconds", "first"), k=("review_id", "size"))
         if len(per_batch) > 1:
@@ -240,6 +242,7 @@ def pilot_estimate(cfg: dict[str, Any], paths: Paths, conditions: Sequence[str],
             "estimated_test_hours_per_condition": est,
             "estimated_test_hours_total": sum(est.values()),
             "backend": backend.info, "plan": plan, "pilot_reviews_per_condition": n,
+            "batch_size": batch_size or cfg["llm"]["batch_size"],
             "note": "Extrapolation from a short pilot on validation reviews; actual time varies."}
 
 
