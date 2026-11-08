@@ -43,7 +43,7 @@ tfidf:
   sublinear_tf: true
   max_features: null
   # C is selected on the validation split (macro F1); ties -> smallest C.
-  C_grid: [0.25, 1.0, 4.0, 16.0]
+  C_grid: [0.25, 1.0, 4.0, 16.0, 64.0, 256.0]
   max_iter: 2000
 
 llm:
