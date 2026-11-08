@@ -8,6 +8,14 @@ Scoring rules
     {negative, positive, no_decision}, where no_decision = invalid (LLM) or neutral (VADER).
   * Completeness: a run with fewer predictions than the split size is flagged
     incomplete and excluded from cross-method comparisons.
+
+Primary vs. secondary conditions
+  * The few-shot spread (RQ2) and the cross-method disagreement analysis (RQ3) use the
+    primary conditions only (baselines, zero-shot, original few-shot sets).
+  * The *_flip conditions (same demonstrations, label order swapped; a secondary, post-hoc
+    analysis) are scored in metrics_summary.csv like every run, and compared with their
+    original condition in a separate order section (order_effect.csv, metrics.json
+    "order_analysis"): paired agreement and exact McNemar on the same reviews.
 """
 from __future__ import annotations
 
@@ -23,6 +31,7 @@ from sklearn.metrics import f1_score, precision_recall_fscore_support
 
 from . import INVALID, NEUTRAL
 from .config import Paths
+from .demos import FLIP_SUFFIX, is_flip
 from .predio import MANIFEST_FILE, PRED_FILE
 
 CLASSES = ["negative", "positive"]
@@ -138,7 +147,8 @@ def evaluate(cfg: dict[str, Any], paths: Paths, split_tag: str, out_dir: Path | 
     # Few-shot: spread over demonstration sets for each k.
     fewshot = {}
     for k in cfg["few_shot"]["shots"]:
-        names = [n for n in metrics if n.startswith(f"qwen_{k}shot_set") and metrics[n]["complete"]]
+        names = [n for n in metrics if n.startswith(f"qwen_{k}shot_set") and not is_flip(n)
+                 and metrics[n]["complete"]]
         if names:
             acc = np.array([metrics[n]["accuracy"] for n in names])
             f1 = np.array([metrics[n]["macro_f1"] for n in names])
@@ -147,9 +157,11 @@ def evaluate(cfg: dict[str, Any], paths: Paths, split_tag: str, out_dir: Path | 
                                    "macro_f1_mean": f1.mean(), "macro_f1_std": f1.std(ddof=1) if len(f1) > 1 else None,
                                    "invalid_total": int(sum(metrics[n]["n_no_decision"] for n in names))}
 
-    analysis = disagreement_analysis(cfg, runs, metrics, out_dir)
+    primary = {n: r for n, r in runs.items() if not is_flip(n)}
+    analysis = disagreement_analysis(cfg, primary, metrics, out_dir)
+    order = order_analysis(runs, metrics, out_dir)
     result = {"status": banner, "split_tag": split_tag, "metrics": metrics, "few_shot_spread": fewshot,
-              "analysis": analysis}
+              "analysis": analysis, "order_analysis": order}
     (out_dir / "metrics.json").write_text(json.dumps(result, indent=2, default=float), encoding="utf-8")
     (out_dir / "STATUS.txt").write_text(banner + "\n", encoding="utf-8")
     return result
@@ -206,3 +218,35 @@ def disagreement_analysis(cfg, runs, metrics, out_dir: Path) -> dict[str, Any]:
     if sample:
         pd.concat(sample).to_csv(out_dir / "error_analysis_sample.csv", index=False)
     return out
+
+
+def order_analysis(runs, metrics, out_dir: Path) -> dict[str, Any]:
+    """Secondary, post-hoc: each *_flip condition vs. its original (same set, same shots).
+
+    Only pairs where both runs are complete are compared, on the review IDs they share.
+    """
+    rows = []
+    for flip in sorted(n for n in runs if is_flip(n)):
+        orig = flip[: -len(FLIP_SUFFIX)]
+        if orig not in runs or not (metrics[orig]["complete"] and metrics[flip]["complete"]):
+            continue
+        cols = ["review_id", "pred_label", "correct"]
+        m = runs[orig][0][cols].merge(runs[flip][0][cols], on="review_id", suffixes=("_orig", "_flip"))
+        a, b = m["correct_orig"].to_numpy(bool), m["correct_flip"].to_numpy(bool)
+        rows.append({
+            "original": orig, "flipped": flip, "n": int(len(m)),
+            "order_original": "-".join(l[0].upper() for l in runs[orig][1].get("demo_labels") or []),
+            "order_flipped": "-".join(l[0].upper() for l in runs[flip][1].get("demo_labels") or []),
+            "accuracy_original": float(a.mean()), "accuracy_flipped": float(b.mean()),
+            "accuracy_diff_flipped_minus_original": float(b.mean() - a.mean()),
+            "macro_f1_original": metrics[orig]["macro_f1"], "macro_f1_flipped": metrics[flip]["macro_f1"],
+            "pct_pred_positive_original": float(100 * (m["pred_label_orig"] == "positive").mean()),
+            "pct_pred_positive_flipped": float(100 * (m["pred_label_flip"] == "positive").mean()),
+            "agreement": float((m["pred_label_orig"] == m["pred_label_flip"]).mean()),
+            **mcnemar_exact(a, b),  # a = original, b = flipped
+        })
+    if not rows:
+        return {"note": "no complete original/_flip pairs"}
+    pd.DataFrame(rows).to_csv(out_dir / "order_effect.csv", index=False)
+    return {"note": "secondary, post-hoc analysis (not part of RQ2 spread)",
+            "file": "order_effect.csv", "pairs": rows}

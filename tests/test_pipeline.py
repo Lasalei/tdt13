@@ -13,8 +13,9 @@ import pytest
 from imdbsent.baselines import vader_label
 from imdbsent.config import Paths, load_config
 from imdbsent.data import normalize_text, prepare, stratified_pick, truncate_words
-from imdbsent.demos import select_demo_sets, write_demo_sets
-from imdbsent.evaluate import mcnemar_exact, score_run
+from imdbsent.demos import (condition_names, flip_condition_names, primary_condition_names,
+                            select_demo_sets, write_demo_sets)
+from imdbsent.evaluate import evaluate, mcnemar_exact, score_run
 from imdbsent.guard import TestSplitLocked, freeze, load_split
 from imdbsent.llm import DummyBackend, pilot_estimate, run_llm
 from imdbsent.predio import PredictionWriter
@@ -233,3 +234,39 @@ def test_llm_progress_lines(small, capsys):
     assert "start: 0/200 already done" in lines[0]
     progress = [l for l in lines[1:] if "%)" in l]
     assert 9 <= len(progress) <= 11 and "200/200 (100%)" in progress[-1]
+
+
+# ---------------------------------------------------------------- order analysis (secondary)
+def test_flip_conditions_same_demos_swapped_order(small):
+    cfg, paths, _, _ = small
+    conds = json.loads(paths.demos_file.read_text())["conditions"]
+    names = list(conds)
+    # originals first and unchanged in position; flips appended after them
+    assert set(names[:7]) == set(primary_condition_names(cfg))
+    assert set(names[7:]) == set(flip_condition_names(cfg)) and len(names) == 13
+    assert condition_names(cfg) == primary_condition_names(cfg) + flip_condition_names(cfg)
+    for flip in flip_condition_names(cfg):
+        f, o = conds[flip], conds[flip[:-5]]
+        assert f["order_flip_of"] == flip[:-5] and f["shots"] == o["shots"] and f["set"] == o["set"]
+        swapped = [x for i in range(0, len(o["demo_ids"]), 2) for x in o["demo_ids"][i:i + 2][::-1]]
+        assert f["demo_ids"] == swapped
+        assert f["demo_labels"] == [{"positive": "negative", "negative": "positive"}[l] for l in o["demo_labels"]]
+    for s in (1, 2, 3):  # nested structure kept
+        assert conds[f"qwen_4shot_set{s}_flip"]["demo_ids"][-2:] == conds[f"qwen_2shot_set{s}_flip"]["demo_ids"]
+    assert conds["qwen_2shot_set1_flip"]["demo_labels"] == ["negative", "positive"]
+    assert conds["qwen_4shot_set1_flip"]["demo_labels"] == ["negative", "positive"] * 2
+
+
+def test_evaluate_keeps_flips_out_of_primary_analysis(small, tmp_path):
+    cfg, paths, _, _ = small
+    for c in ("qwen_2shot_set1", "qwen_2shot_set1_flip", "qwen_2shot_set2"):
+        run_llm(cfg, paths, c, "pipeline-test", backend=DummyBackend(), batch_size=50, overwrite=True)
+    res = evaluate(cfg, paths, "pipeline-test", out_dir=tmp_path)
+    assert "qwen_2shot_set1_flip" in res["metrics"]                       # scored like any run
+    assert not any(n.endswith("_flip") for n in res["few_shot_spread"]["2shot"]["sets"])
+    assert not any(n.endswith("_flip") for n in res["analysis"]["conditions"])
+    pairs = res["order_analysis"]["pairs"]
+    assert [(p["original"], p["flipped"]) for p in pairs] == [("qwen_2shot_set1", "qwen_2shot_set1_flip")]
+    assert pairs[0]["order_original"] == "P-N" and pairs[0]["order_flipped"] == "N-P"
+    assert pairs[0]["n"] == 200 and 0.0 <= pairs[0]["p_value"] <= 1.0
+    assert (tmp_path / "order_effect.csv").exists()

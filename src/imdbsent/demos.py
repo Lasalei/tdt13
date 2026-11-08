@@ -16,6 +16,18 @@ Design (configs/experiment.yaml, section few_shot):
     Labels alternate in every prompt. With three sets the final label is negative in
     sets 1 and 3 and positive in set 2 (2:1, unavoidable with an odd number of sets);
     per-set metrics and confusion matrices are reported so any label bias is visible.
+
+Secondary, post-hoc order analysis (added before freeze, after a development observation
+that sets 1 and 3, both P-N ordered, gave identical predictions while set 2 (N-P) differed,
+so demonstration selection and order were confounded):
+  * qwen_{2,4}shot_set{1,2,3}_flip use exactly the same demonstrations as the original
+    condition, with the two labels inside each pair swapped; the nested structure is kept:
+        set1_flip: 2-shot N P      4-shot N P N P
+        set2_flip: 2-shot P N      4-shot P N P N
+        set3_flip: 2-shot N P      4-shot N P N P
+  * They are appended after the original conditions; the original conditions, their
+    demonstration IDs and their order are unchanged. They are not part of the primary
+    analysis (RQ2 spread over sets); evaluate reports them in a separate order section.
 """
 from __future__ import annotations
 
@@ -30,12 +42,30 @@ from .config import Paths, file_sha256
 from .guard import load_split
 
 
-def condition_names(cfg: dict[str, Any]) -> list[str]:
+FLIP_SUFFIX = "_flip"
+
+
+def primary_condition_names(cfg: dict[str, Any]) -> list[str]:
+    """Zero-shot and the original few-shot conditions (primary analysis, RQ1/RQ2)."""
     fs = cfg["few_shot"]
     names = ["qwen_zeroshot"]
     for k in fs["shots"]:
         names += [f"qwen_{k}shot_set{s}" for s in range(1, fs["n_sets"] + 1)]
     return names
+
+
+def flip_condition_names(cfg: dict[str, Any]) -> list[str]:
+    """Secondary order-analysis conditions: same demonstrations, label order swapped."""
+    return [n + FLIP_SUFFIX for n in primary_condition_names(cfg) if n != "qwen_zeroshot"]
+
+
+def is_flip(condition: str) -> bool:
+    return condition.endswith(FLIP_SUFFIX)
+
+
+def condition_names(cfg: dict[str, Any]) -> list[str]:
+    """All LLM conditions that are run (`--condition all`): primary, then order flips."""
+    return primary_condition_names(cfg) + flip_condition_names(cfg)
 
 
 def select_demo_sets(cfg: dict[str, Any], train_fit: pd.DataFrame) -> dict[str, Any]:
@@ -69,6 +99,15 @@ def select_demo_sets(cfg: dict[str, Any], train_fit: pd.DataFrame) -> dict[str, 
         far = [pos[1], neg[1]] if pos_first else [neg[1], pos[1]]
         conditions[f"qwen_2shot_set{s + 1}"] = {"shots": 2, "set": s + 1, "demos": near}
         conditions[f"qwen_4shot_set{s + 1}"] = {"shots": 4, "set": s + 1, "demos": far + near}
+    # Secondary order analysis: appended after all original conditions, which stay unchanged.
+    for s in range(fs["n_sets"]):
+        for k in (2, 4):
+            orig = conditions[f"qwen_{k}shot_set{s + 1}"]
+            d = orig["demos"]
+            flipped = [x for i in range(0, len(d), 2) for x in (d[i + 1], d[i])]  # swap within pairs
+            conditions[f"qwen_{k}shot_set{s + 1}{FLIP_SUFFIX}"] = {
+                "shots": k, "set": s + 1, "demos": flipped,
+                "order_flip_of": f"qwen_{k}shot_set{s + 1}", "secondary": True}
     for c in conditions.values():
         c["demo_ids"] = [d["review_id"] for d in c["demos"]]
         c["demo_labels"] = [d["label"] for d in c["demos"]]

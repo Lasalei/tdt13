@@ -11,6 +11,7 @@ sentiment classification of English movie reviews:
 | TF-IDF + logistic regression | `tfidf_lr` |
 | Qwen2.5-1.5B-Instruct, zero-shot | `qwen_zeroshot` |
 | Qwen2.5-1.5B-Instruct, few-shot | `qwen_2shot_set{1,2,3}`, `qwen_4shot_set{1,2,3}` |
+| *Secondary, post-hoc:* few-shot with swapped label order | `qwen_2shot_set{1,2,3}_flip`, `qwen_4shot_set{1,2,3}_flip` |
 
 Research questions:
 1. How do the approaches compare in classification performance?
@@ -133,7 +134,36 @@ Zero-shot is the same prompt with no demonstration turns.
 
 Analysis for RQ2: mean, standard deviation, minimum and maximum over the three sets for 2-shot
 and 4-shot; per-set results; paired comparisons (exact McNemar) of zero-shot vs. each set and
-of 2-shot vs. 4-shot within each set.
+of 2-shot vs. 4-shot within each set. Only the six original few-shot conditions are used here.
+
+### Secondary, post-hoc analysis: demonstration order (`_flip` conditions)
+
+This analysis was **added before freeze, based on a development observation**, and is not
+part of the original design. On the validation-dev subset, 2-shot set 1 and set 3 gave
+identical predictions, and so did 4-shot set 1 and set 3. Both use P-N order, while set 2
+(N-P) differed. Demonstration selection and order were therefore confounded.
+
+To separate them, each few-shot condition has a `_flip` twin with the **same demonstrations**
+and the two labels inside each pair swapped. The nested structure is kept:
+
+| set | 2-shot `_flip` | 4-shot `_flip` |
+|---|---|---|
+| 1 | N P | N P N P |
+| 2 | P N | P N P N |
+| 3 | N P | N P N P |
+
+* The `_flip` conditions are appended to `demo_sets.json`. The original conditions, their
+  demonstration IDs and their order are unchanged (the file hash changes because entries
+  were added).
+* They are run like every LLM condition (`--condition all` includes them) and appear in
+  `metrics_summary.csv`, but they are **excluded from the RQ2 spread over sets and from the
+  cross-method disagreement analysis**, which use the primary conditions only.
+* `evaluate` reports them in a separate order section (`order_effect.csv`, and
+  `order_analysis` in `metrics.json`): for each set and shot count, original vs. flipped on the
+  same reviews, with accuracy and macro F1 of both, the share of positive predictions,
+  prediction agreement and an exact McNemar test.
+* Because the analysis was motivated by development data, its results are reported as
+  secondary and exploratory.
 
 ## Evaluation
 
@@ -143,7 +173,8 @@ outputs or VADER no-decisions.
 
 * Invalid outputs and no-decisions count as **incorrect** in accuracy. For per-class metrics
   they are a false negative for the true class and a false positive for neither class.
-* Cross-method analysis (only on complete runs, on the same review IDs): agreement patterns
+* Cross-method analysis (only on complete runs of the primary conditions, on the same
+  review IDs; the `_flip` conditions are analysed separately, see above): agreement patterns
   (all correct / all wrong / split); accuracy by length bin (≤100, 101–200, 201–400, >400
   truncated words), by true label and by VADER neutral band; pairwise agreement with exact
   McNemar tests; and a seeded sample of split and all-wrong reviews for manual error
@@ -155,12 +186,13 @@ outputs or VADER no-decisions.
 
 | | per condition | conditions | total |
 |---|---:|---:|---:|
-| LLM, dev subset (development) | 500 | 7 | 3,500 |
-| LLM, full validation (optional) | 2,500 | 7 | 17,500 |
-| **LLM, test (final)** | 25,000 | 7 | **175,000** |
+| LLM, dev subset (development) | 500 | 13 | 6,500 |
+| LLM, full validation (optional) | 2,500 | 13 | 32,500 |
+| **LLM, test (final)** | 25,000 | 13 | **325,000** |
 | Baselines, test (incl. full-text variants) | 25,000 | 4 | 100,000 |
 
-`python -m imdbsent plan` prints these from the config.
+LLM conditions: zero-shot, six original few-shot conditions and six secondary `_flip`
+conditions. `python -m imdbsent plan` prints these from the config.
 
 ---
 
@@ -193,7 +225,7 @@ python -m imdbsent prepare && python -m imdbsent select-demos   # or copy data/p
 # a) Runtime pilot: 48 balanced dev reviews x {zero-shot, 2-shot set1, 4-shot set1}
 python -m imdbsent pilot --n 48           # -> results/pilot_estimate_hf.json
 
-# b) Development runs on the 500-review dev subset, all 7 LLM conditions
+# b) Development runs on the 500-review dev subset, all 13 LLM conditions
 python -m imdbsent llm --condition all --split-tag validation-dev
 python -m imdbsent evaluate --split-tag validation-dev   # baselines are scored on the same 500 reviews
 ```
@@ -226,7 +258,7 @@ resumes interrupted runs. Progress is printed about every 10% of each condition.
    notebook. If they differ, upload the local `data/processed/` to Drive;
 4. runs the validation baselines if missing;
 5. archives the earlier T4 dev runs (see below);
-6. runs the pilot (`--n 48`, config batch size), all seven LLM conditions on
+6. runs the pilot (`--n 48`, config batch size), all 13 LLM conditions on
    `validation-dev`, and `evaluate --split-tag validation-dev`.
 
 **Archived T4 runs.** The first dev runs were made on a T4 with `llm.dtype: auto`. Pinning
