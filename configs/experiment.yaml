@@ -10,7 +10,7 @@ data:
   hf_dataset: stanfordnlp/imdb
   hf_config: plain_text
   # Pin to a commit SHA before freezing (prepare prints the resolved SHA when online).
-  hf_revision: null
+  hf_revision: e6281661ce1c48d982bc483cf8a173c1bbeb5d31
   # Stratified validation subset held out from the 25,000 official training reviews.
   validation_size: 2500
   # Fixed stratified subset of validation used for LLM development runs (prompt sanity,
@@ -49,7 +49,7 @@ tfidf:
 llm:
   model: Qwen/Qwen2.5-1.5B-Instruct
   # Pin to a commit SHA before freezing.
-  revision: null
+  revision: 989aa7980e4cf806f80c7fef2b1adb7bc71aa306
   dtype: auto          # bf16 if supported, else fp16 on GPU, fp32 on CPU
   batch_size: 16
   max_new_tokens: 5
