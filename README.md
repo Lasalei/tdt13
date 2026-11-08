@@ -203,6 +203,26 @@ Colab, put the project on Google Drive so `runs/` survives a disconnect.
 The development machine used to build this project has no GPU (2 CPU cores, 8 GB RAM), and
 Hugging Face is blocked there, so no LLM inference has been run yet.
 
+### Running on Colab
+
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Lasalei/tdt13/blob/main/notebooks/colab_gpu_runs.ipynb)
+
+[`notebooks/colab_gpu_runs.ipynb`](notebooks/colab_gpu_runs.ipynb) runs the LLM development
+steps on a Colab T4 GPU (Runtime → Change runtime type → T4 GPU). The repository and all
+outputs live on Google Drive (`MyDrive/tdt13`), so **Run all** after a disconnect resumes
+interrupted runs. The notebook:
+
+1. checks for a CUDA GPU, mounts Drive, clones or pulls the repository;
+2. installs the requirements (keeping Colab's CUDA build of torch) and runs pytest;
+3. runs `prepare` and `select-demos` only if `data/processed/` is missing, then stops unless the
+   split file hashes and the `demo_sets.json` hash match the expected values at the top of the
+   notebook. If they differ, upload the local `data/processed/` to Drive;
+4. runs the validation baselines if missing, the pilot (`--n 48`, config batch size), all seven
+   LLM conditions on `validation-dev`, and `evaluate --split-tag validation-dev`.
+
+It never runs `freeze` or touches the test split. Test runs come later, after `freeze`, in a
+separate notebook.
+
 ### Test-set discipline (freeze, then evaluate once)
 
 ```bash
@@ -255,6 +275,7 @@ src/imdbsent/
   guard.py       test-split lock (freeze)
   predio.py      append-only, resumable prediction files
   cli.py         `python -m imdbsent <command>`
+notebooks/colab_gpu_runs.ipynb      Colab GPU runs (pilot + validation-dev), Drive-backed
 scripts/make_synthetic_fixture.py   synthetic data for pipeline tests only
 tests/test_pipeline.py              technical tests
 ```
