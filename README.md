@@ -76,9 +76,10 @@ VADER returns a `compound` score in [-1, 1]. It is mapped to the two dataset lab
 ### TF-IDF + logistic regression
 
 Word 1–2-grams, `min_df=2`, `max_df=0.95`, sublinear TF, liblinear LR. Fitted **only on
-`train_fit`**. The regularisation strength C is chosen from `{0.25, 1, 4, 16}` by validation
-macro F1 (ties go to the smaller C). The selected model is saved to `models/` and reused
-unchanged on test.
+`train_fit`**. The regularisation strength C is chosen from `{0.25, 1, 4, 16, 64, 256}` by
+validation macro F1 (ties go to the smaller C). The grid was extended from `{0.25, 1, 4, 16}`
+before freeze because C = 16 was selected at its upper edge. The selected model is saved to
+`models/` and reused unchanged on test.
 
 ### Qwen2.5-1.5B-Instruct
 
