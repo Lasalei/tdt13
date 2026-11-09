@@ -336,6 +336,16 @@ After freeze, nothing in the configuration, data, demonstrations or models may c
   `prompt_tokens`, `n_words`, `truncated`.
 * Seed 13 for the split, demonstration selection and LR. The dev subset uses seed 14.
 
+### Report package
+
+`python scripts/make_report_package.py` collects existing results into a ZIP under
+`results/report_packages/`: config, README, git state, data/truncation/prompt/demo
+documentation, metrics, confusion matrices, comparisons, per-review predictions (no review
+text), run manifests, pilot timings and a run inventory, separated into development, archived
+T4, pilot and (after freeze) final test folders. It runs no experiment, never loads a split and
+excludes model files, dataset files and secrets. On Colab after freeze, run it from a separate
+clone with `--root /content/drive/MyDrive/tdt13` so the frozen checkout is not changed.
+
 ## Repository layout
 
 ```
@@ -353,6 +363,7 @@ src/imdbsent/
 notebooks/colab_gpu_runs.ipynb      Colab L4 GPU runs (pilot + validation-dev), Drive-backed
 notebooks/colab_test_runs.ipynb     Colab L4 final runs: _flip dev runs, freeze, test split
 scripts/make_synthetic_fixture.py   synthetic data for pipeline tests only
+scripts/make_report_package.py      shareable ZIP of existing results (no experiments run)
 tests/test_pipeline.py              technical tests
 ```
 
