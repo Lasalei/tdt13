@@ -270,3 +270,30 @@ def test_evaluate_keeps_flips_out_of_primary_analysis(small, tmp_path):
     assert pairs[0]["order_original"] == "P-N" and pairs[0]["order_flipped"] == "N-P"
     assert pairs[0]["n"] == 200 and 0.0 <= pairs[0]["p_value"] <= 1.0
     assert (tmp_path / "order_effect.csv").exists()
+
+
+# ---------------------------------------------------------------- error-analysis sample
+def test_error_analysis_selection_groups_seeded_no_duplicates():
+    spec = importlib.util.spec_from_file_location("eas", ROOT / "scripts" / "make_error_analysis_sample.py")
+    eas = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(eas)
+    rng = np.random.default_rng(0)
+    ids = [f"te-{i:04d}-0" for i in range(400)]
+    true = rng.choice(["negative", "positive"], size=400)
+    preds = {}
+    for c in eas.CORE:
+        flip = rng.random(400) < 0.3
+        p = np.where(flip, np.where(true == "positive", "negative", "positive"), true)
+        preds[c] = pd.DataFrame({"review_id": ids, "true_label": true, "pred_label": p,
+                                 "correct": p == true, "raw_output": p, "score": 0.0})
+    w = eas.wide_table(preds)
+    sel, stats = eas.select(w, 10, 13, include=["te-0005-0"])
+    assert sel["review_id"].is_unique
+    assert sel.iloc[0].tolist()[:2] == ["R0", "te-0005-0"]
+    masks = eas.group_masks(w.set_index(w["review_id"]))
+    for g, _ in eas.GROUPS:
+        got = sel.loc[sel["sample_group"] == g, "review_id"]
+        assert len(got) == stats[g]["selected"] <= 10
+        assert masks[g].loc[got].all()                         # every pick satisfies its group
+    sel2, _ = eas.select(w, 10, 13, include=["te-0005-0"])
+    assert sel.equals(sel2)                                    # deterministic
