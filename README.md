@@ -291,6 +291,27 @@ config hash, split files, demonstration file and trained TF-IDF models match the
 `freeze` requires pinned model and dataset revisions and a clean git tree (overridable with
 `--allow-unpinned`, which is recorded as a warning). It always refuses synthetic data.
 
+#### Final test runs on Colab
+
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Lasalei/tdt13/blob/main/notebooks/colab_test_runs.ipynb)
+
+[`notebooks/colab_test_runs.ipynb`](notebooks/colab_test_runs.ipynb) **freezes the
+configuration and uses the test split.** Run it after the development notebook, on the same
+Drive folder. It:
+
+1. stops unless the GPU is an L4 (all test conditions must run on the same GPU type);
+2. before freeze: `git pull`, stops if the git tree is not clean, checks the split and
+   `demo_sets.json` fingerprints and that the TF-IDF models match the current settings;
+3. before freeze: runs the six `_flip` conditions on `validation-dev`, evaluates
+   `validation-dev`, and stops unless all 13 LLM conditions have complete dev runs with the
+   current settings and demonstrations;
+4. runs `freeze` only if `frozen.lock` does not exist; otherwise checks the lock and that the
+   checked-out commit is the frozen one (the code is not pulled again after freeze);
+5. runs `baselines --split test`, `llm --condition all --split-tag test` (resumable),
+   checks that every LLM test run reports an L4, and runs `evaluate --split-tag test`.
+
+After freeze, nothing in the configuration, data, demonstrations or models may change.
+
 ## How data leakage is prevented
 
 | Risk | Safeguard |
@@ -329,6 +350,7 @@ src/imdbsent/
   predio.py      append-only, resumable prediction files
   cli.py         `python -m imdbsent <command>`
 notebooks/colab_gpu_runs.ipynb      Colab L4 GPU runs (pilot + validation-dev), Drive-backed
+notebooks/colab_test_runs.ipynb     Colab L4 final runs: _flip dev runs, freeze, test split
 scripts/make_synthetic_fixture.py   synthetic data for pipeline tests only
 tests/test_pipeline.py              technical tests
 ```
